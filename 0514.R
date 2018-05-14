@@ -29,7 +29,6 @@ book=merge_recurse(list(book1,book2,book3,book4,book5,book6))
 book$id <- seq.int(nrow(book))
 book$X = NULL
 
-
 #Column order change
 book = book[c("id", "ratings", "dates","formats", "titles","texts")]
 
@@ -41,7 +40,7 @@ book = arrange(book,dates)
 tt <- ttheme_default(colhead=list(fg_params = list(parse=TRUE)))
 grid.table(head(book),theme=tt)
 
-########## Review text character count #########
+###### Book review text character count ######
 library(qdap)
 
 #Count the number of character and create the responding column
@@ -62,8 +61,7 @@ qplot(count.format$formats, count.format$mean,
       main = "Mean of Character Count by Date")
 ###############################################
 
-
-########### Sentiment analysis ###########
+############# Sentiment analysis ##############
 library(dplyr)
 library(tidyverse)
 library(tidytext)
@@ -89,7 +87,6 @@ sentiment <- review_words %>%
   mutate(method = "AFINN")
 
 View(sentiment)
-
 ########################################
 
 #Merge sentiment dataframe with book dataframe 
@@ -126,12 +123,17 @@ ggplot(book, aes(x=formats)) +
   xlab("format") + 
   ggtitle("The Number of Book Format")
 
-
 #[plot]character count by date
 qplot(book$dates, book$count, 
       xlab = "date",
       ylab = "character count", 
       main = "Character Count by Date")
+
+#[plot]sentiment by date
+qplot(book$dates, book$sentiment, 
+      xlab = "date",
+      ylab = "character count", 
+      main = "Sentiment by Date")
 
 #[plot]rating by date 
 qplot(book$dates, book$ratings, 
@@ -156,9 +158,6 @@ qplot(book$formats, book$sentiments,
       xlab = "format",
       ylab = "sentiment", 
       main = "The degree of sentiment by format")
-
-
-
 
 
 #############################################################
@@ -326,7 +325,8 @@ library(corrplot)
 corrplot(cor(book1.final[,-c(1,2,4)]), method = "circle")
 corrplot.mixed(cor(book1.final[,-c(1,2,4)]),lower.col = "black", number.cex = .7)
 
-#create a dummy for digital book(Kindle Edition). If Kindle format = "digital", otherwise = "physical" 
+#Create a binary variable for classification  
+#If Kindle format = "digital", otherwise = "physical" 
 
 #book1.dummy = as.numeric(book1.final$format == "Kindle Edition")
 #book1.final$kindle = as.numeric(book1.dummy)

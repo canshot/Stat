@@ -1,17 +1,19 @@
-#Data manipulation 
+#Data preparation 
 
 library(tidytext)
 library(dplyr)
 library(stringr)
 library(gridExtra) #grid table
+library(ggplot2)
+library(stats)
 
 #Read six csv files 
-book1 <- read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf1.csv", stringsAsFactors = FALSE)
-book2 <- read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf2.csv", stringsAsFactors = FALSE)
-book3 <- read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf3.csv", stringsAsFactors = FALSE)
-book4 <- read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf4.csv", stringsAsFactors = FALSE)
-book5 <- read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf5.csv", stringsAsFactors = FALSE)
-book6 <- read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf6.csv", stringsAsFactors = FALSE)
+book1 = read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf1.csv", stringsAsFactors = FALSE)
+book2 = read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf2.csv", stringsAsFactors = FALSE)
+book3 = read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf3.csv", stringsAsFactors = FALSE)
+book4 = read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf4.csv", stringsAsFactors = FALSE)
+book5 = read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf5.csv", stringsAsFactors = FALSE)
+book6 = read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/Mydf6.csv", stringsAsFactors = FALSE)
 
 #Date format identification 
 #%Y: 4-digit year (1982), %y: 2-digit year (82), %m: 2-digit month (01), %d: 2-digit day of the month (13), 
@@ -23,6 +25,15 @@ book4$dates = as.Date(book4$dates, format = "%d-%b-%y")
 book5$dates = as.Date(book5$dates, format = "%d-%b-%y")
 book6$dates = as.Date(book6$dates, format = "%d-%b-%y")
 
+#Google Trend of "Man Booker" over time
+#Google Trend represents search interest relative to the highest point 
+#on the chart for the given region and time. A value of 100 is 
+#the peak popularity for the term. A value of 50 means that 
+#the term is half as popular. 
+
+google = read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/googletrend.csv", stringsAsFactors = FALSE)
+grid.table(head(google))
+
 #Create combined dataframe
 library(reshape)
 book=merge_recurse(list(book1,book2,book3,book4,book5,book6))
@@ -31,6 +42,7 @@ book$X = NULL
 
 #Column order change
 book = book[c("id", "ratings", "dates","formats", "titles","texts")]
+View(book)
 
 #Order by date
 library(dplyr)
@@ -86,7 +98,12 @@ sentiment <- review_words %>%
   summarise(sentiment = mean(afinn.score)) %>%
   mutate(method = "AFINN")
 
-View(sentiment)
+sentiment.date <- review_words %>%
+  inner_join(AFINN, by = "word") %>%
+  group_by(id, ratings, dates, formats) %>%
+  summarise(sentiment = mean(afinn.score)) %>%
+  mutate(method = "AFINN") #same with 'sentiment'dateset
+
 ########################################
 
 #Merge sentiment dataframe with book dataframe 
@@ -105,7 +122,7 @@ colnames(sentiment.merge)[which(names(sentiment.merge) == "formats.x")] <- "form
 colnames(sentiment.merge) = c("id","rating","date", "format", "sentiment", "title", "text", "count")
 
 #create a final dataset 
-book.final = sentiment.merge[-c(6,7)]
+book.final = sentiment.merge[-c(6,7)] #2,245 observations
 
 ############ Descriptive Statistics ###############
 
@@ -117,164 +134,181 @@ table(book.final$format)
 library(ggplot2)
 
 theme_set(theme_bw())
-ggplot(book, aes(x=formats)) +
+ggplot(book.final, aes(x=format)) +
   geom_bar() + 
   ylab("number") + 
   xlab("format") + 
   ggtitle("The Number of Book Format")
 
 #[plot]character count by date
-qplot(book$dates, book$count, 
+qplot(book.final$date, book.final$count, 
       xlab = "date",
       ylab = "character count", 
       main = "Character Count by Date")
 
 #[plot]sentiment by date
-qplot(book$dates, book$sentiment, 
+qplot(book.final$date, book.final$sentiment, 
       xlab = "date",
-      ylab = "character count", 
-      main = "Sentiment by Date")
+      ylab = "sentiment", 
+      main = "Sentiment by Date",
+      geom = "line")
 
 #[plot]rating by date 
-qplot(book$dates, book$ratings, 
+qplot(book.final$date, book.final$rating, 
       xlab = "date",
       ylab = "numeric rating", 
-      main = "Numeric Rating by Date")
+      main = "Numeric Rating by Date",
+      geom = "point")
 
 #[plot]character count by format
-qplot(book$formats, book$count, 
+qplot(book.final$format, book.final$count, 
       xlab = "format",
       ylab = "character count", 
-      main = "Character Count by format")
+      main = "Character Count by format",
+      geom = "point")
+
+qplot(book.final$format, book.final$count, 
+      xlab = "format",
+      ylab = "character count", 
+      main = "Character Count by format",
+      geom = "jitter")
+
+#What is jitter? 
+#It adds a small amount of random variation to the 
+#location of each point, and is a useful way of handling 
+#overplotting caused by discreteness in smaller datasets.
 
 #[plot]rating by format
-qplot(book$formats, book$ratings, 
+qplot(book.final$format, book.final$rating, 
       xlab = "format",
       ylab = "rating", 
-      main = "Numeric rating by format")
+      main = "Numeric rating by format",
+      geom = "point")
+
+qplot(book.final$format, book.final$rating, 
+      xlab = "format",
+      ylab = "rating", 
+      main = "Numeric rating by format",
+      geom = "jitter") #to avoid overplotting
 
 #[plot]sentiment by format
-qplot(book$formats, book$sentiments, 
+qplot(book.final$format, book.final$sentiment, 
       xlab = "format",
       ylab = "sentiment", 
-      main = "The degree of sentiment by format")
+      main = "The degree of sentiment by format",
+      geom = "point")
 
+qplot(book.final$format, book.final$sentiment, 
+      xlab = "format",
+      ylab = "sentiment", 
+      main = "The degree of sentiment by format",
+      geom = "boxplot") #to see the median and quartiles in a clear way
+
+#[plot]Google Trend
+google$date <- as.Date(google$date, '%m/%d/%Y')
+require(ggplot2)
+ggplot(data=google, aes(date,trend)) + geom_line() + ggtitle("Google Trend of 'Man Booker' by Date")
 
 #############################################################
+#To analyze the relationship between Google Trend and review features,
+#data needs to be manipulated on a monthly basis
+
+library(lubridate)
+library(plyr)
+#Google Trend by month
+google$date = floor_date(google$date, "month")
+google.month = ddply(google, "date", summarise, trend = sum(trend))
+grid.table(google.month)
 
 #sentiment & ratings by month
 
-review_sentiment1.dates$dates <- floor_date(review_sentiment1.dates$dates, "month")
-review_sentiment1.month = ddply(review_sentiment1.dates, "dates", summarise, 
-                                sentiment = mean(sentiment), 
-                                ratings = mean(ratings))
+sentiment.date$dates = floor_date(sentiment.date$dates, "month")
+sentiment.month = ddply(sentiment.date, "dates", summarise, 
+                        sentiment = mean(sentiment), 
+                        ratings = mean(ratings))
+View(sentiment.month)
 
 #allign setiment & rating with sales
-review_sentiment1.month=review_sentiment1.month[-c(1:3),]
+sentiment.month=sentiment.month[-c(1:7),]
 
 #plot of sentiment by month 
 library(ggplot2)
 theme_set(theme_bw())
-ggplot(review_sentiment1.month, aes(dates, sentiment, group = dates)) +
-  geom_density() + 
-  ylab("Sentiment scores") + 
-  xlab("Dates") + 
+ggplot(sentiment.month, aes(dates, sentiment, group = dates)) +
+  geom_point() + 
+  ylab("sentiment scores") + 
+  xlab("date") + 
   ggtitle("Sentiment Score by Month")
 
 #plot of ratings by month 
 library(ggplot2)
 theme_set(theme_bw())
-ggplot(review_sentiment1.month, aes(dates, ratings, group = dates)) +
-  geom_density() + 
-  ylab("Ratings") + 
-  xlab("Dates") + 
-  ggtitle("Ratings by Month")
-
-#sales
-sales1 <- read.csv("C:/Users/jae12/Box Sync/3. IS 804/CourseProject/Data/sales1.csv", stringsAsFactors = FALSE)
-
-sales1 = sales1[-15,]
-
-mean(sales1$sales)
-
-theme_set(theme_bw())
-ggplot(sales1, aes(date, sales, group = date)) +
-  geom_density() + 
-  ylab("Sales (book counts sold)") + 
-  xlab("Date") + 
-  ggtitle("[Book1] Sales by Month")
-
-
+ggplot(sentiment.month, aes(dates, ratings, group = dates)) +
+  geom_point() + 
+  ylab("rating") + 
+  xlab("dates") + 
+  ggtitle("Rating by Month")
 
 ########## Linear Regression ########## 
 
 #3.6.2 Simple Linear Regression (sentiment on rating)
-lm.fit1 = lm(rating~sentiment,data = book1.final)
-summary(lm.fit1)
+lm.fit = lm(rating~sentiment,data = book.final)
+summary(lm.fit)
 
-coef(lm.fit1)
-confint(lm.fit1)
+coef(lm.fit)
+confint(lm.fit)
 
-plot(book1.final$rating,book1.final$sentiment,
+plot(book.final$rating,book.final$sentiment,
      pch=20, col="black",cex = 1,
      main="Simple Linear Regresion of SENTIMENT & RATING",
      ylab = "sentiment", xlab = "rating")
-abline(lm.fit1, col="red")
+abline(lm.fit, col="red")
 
 par(mfrow=c(2,2))
-plot(lm.fit1)
+plot(lm.fit)
 
-plot(predict(lm.fit1), residuals(lm.fit1))
-plot(predict(lm.fit1), rstudent(lm.fit1))
-plot(hatvalues(lm.fit1))
+plot(predict(lm.fit), residuals(lm.fit))
+plot(predict(lm.fit), rstudent(lm.fit))
+plot(hatvalues(lm.fit))
 
-which.max(hatvalues(lm.fit1))
+which.max(hatvalues(lm.fit))
 
 #3.6.3 Multiple Linear Regression 
-lm.fit1.multi = lm(rating~sentiment+count,data = book1.final)
-summary(lm.fit1.multi)
+lm.fit.multi = lm(rating~sentiment+count,data = book.final)
+summary(lm.fit.multi)
 
-lm.fit1.all = lm(rating~.,data = book1.final)
-summary(lm.fit1.all)
+lm.fit.all = lm(rating~.,data = book.final)
+summary(lm.fit.all)
 
 #3.6.4 Interaction Terms
-lm.fit1.inter = lm(rating~sentiment*count,data = book1.final)
-summary(lm.fit1.inter)
+lm.fit.inter = lm(rating~sentiment*count,data = book.final)
+summary(lm.fit.inter)
 
 #3.6.5 Non-linear Transformations of the Predictors
-lm.fit1.nonlinear = lm(rating~sentiment+I(sentiment^2), data = book1.final)
-summary(lm.fit1.nonlinear)
+lm.fit.nonlinear = lm(rating~sentiment+I(sentiment^2), data = book.final)
+summary(lm.fit.nonlinear)
 
-anova(lm.fit1, lm.fit1.nonlinear)
+anova(lm.fit, lm.fit.nonlinear)
 
+#The lm of sentiment on Google Trend
+lm.fit.g = lm(google.month$trend~sentiment.month$sentiment)
+lm.fit.g
+summary(lm.fit.g)
+names(lm.fit.g)
+coef(lm.fit.g)
+confint(lm.fit.g)
 
-
-
-
-
-
-
-
-
-#The lm of sentiment on sales
-View(review_sentiment1.month)
-lm.fit.sales1 = lm(sales1$sales~review_sentiment1.month$sentiment)
-lm.fit.sales1
-summary(lm.fit.sales1)
-names(lm.fit.sales1)
-coef(lm.fit.sales1)
-confint(lm.fit.sales1)
-plot(review_sentiment1.month$sentiment,sales1$sales,
+plot(sentiment.month$sentiment,google.month$trend,
      pch=20, col = "red", cex = 2,
-     main="Simple Linear Regresion of SALES1 & SENTIMENT1",
-     ylab = "sales", xlab = "sentiment")
-abline(lm.fit.sales1, col="red")
+     main="Simple Linear Regresion of Google Trend & Sentiment",
+     ylab = "trend", xlab = "sentiment")
+abline(lm.fit.g, col="red")
 
 #drawing confidence interval plot
-plot(coef(lm.fit.sales1), ylim=range(confint(lm.fit.sales1)))
-y = coef(lm.fit.sales1)
+plot(coef(lm.fit.g), ylim=range(confint(lm.fit.g)))
+y = coef(lm.fit.g)
 x = seq_along(y)
-ci = confint(lm.fit.sales1)
+ci = confint(lm.fit.g)
 plot(y, ylim=range(ci))
 #drawing confidence interval plot - the ci's:
 arrows(x,ci[,1],x,ci[,2], code=3, angle=90, length=0.05)
@@ -290,30 +324,30 @@ axis(1, at=x, labels=names(y), tick=FALSE)
 abline(h=0, lty=3)
 arrows(x,ci[,1],x,ci[,2], code=3, angle=90, length=0.05)
 
-#The lm of ratings on sales
-lm.fit.sales1.ratings = lm(sales1$sales~review_sentiment1.month$ratings)
-lm.fit.sales1.ratings
-summary(lm.fit.sales1.ratings)
-names(lm.fit.sales1.ratings)
-coef(lm.fit.sales1.ratings)
-confint(lm.fit.sales1.ratings)
-plot(review_sentiment1.month$ratings,sales1$sales,
+#The lm of ratings on Google Trends
+lm.fit.g.r = lm(google.month$trend~sentiment.month$ratings)
+lm.fit.g.r
+summary(lm.fit.g.r)
+names(lm.fit.g.r)
+coef(lm.fit.g.r)
+confint(lm.fit.g.r)
+plot(sentiment.month$ratings,google.month$trend,
      pch=20, col = "red", cex = 2, 
-     main="Simple Linear Regresion of SALES1 & RATING1",
-     ylab = "Sales", xlab = "Ratings")
-abline(lm.fit.sales1.ratings, col="red")
+     main="Simple Linear Regresion of Goolge Trend & Rating",
+     ylab = "treand", xlab = "rating")
+abline(lm.fit.g.r, col="red")
 
 #Multiple lm 
-lm.fit.multi1 = lm(sales1$sales~review_sentiment1.month$sentiment+review_sentiment1.month$ratings)
-lm.fit.multi1
-summary(lm.fit.multi1)
+lm.fit.g.m = lm(google.month$trend~sentiment.month$sentiment+sentiment.month$ratings)
+lm.fit.g.m
+summary(lm.fit.g.m)
 par(mfrow = c(2, 2))
-plot(lm.fit.multi1, pch=15, col="blue")
+plot(lm.fit.g.m, pch=15, col="blue")
 
-#https://drsimonj.svbtle.com/visualising-residuals
+##########################################################
 
 
-##############Logistic Regression / page 155###############
+############## Logistic Regression ###############
 
 #4.6.1
 names(book1.final)
@@ -325,7 +359,7 @@ library(corrplot)
 corrplot(cor(book1.final[,-c(1,2,4)]), method = "circle")
 corrplot.mixed(cor(book1.final[,-c(1,2,4)]),lower.col = "black", number.cex = .7)
 
-#Create a binary variable for classification  
+#Create a binary variable for classification task 
 #If Kindle format = "digital", otherwise = "physical" 
 
 #book1.dummy = as.numeric(book1.final$format == "Kindle Edition")

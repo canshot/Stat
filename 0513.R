@@ -12,8 +12,6 @@ library(qdap)
 book1.cc = character_count(book1$texts)
 book1$count = as.numeric(book1.cc)
 
-View(book1)
-
 #Count the number of each format
 table(book1$formats)
 
@@ -57,7 +55,7 @@ audio1=arrange(audio1, dates)
 
 #Character count by each format
 
-hard1.large.cc = character_count(hard1$texts)
+hard1.count = character_count(hard1$texts)
 #delete outlier
 #hard1.small = after deleting outlier
 hard1.small=hard1[-243,]
@@ -109,6 +107,8 @@ qplot(hard1$dates, hard1$count,
       xlab = "date",
       ylab = "character count", 
       main = "[Book1] Hardcover format")
+
+View(hard1)
 
 qplot(kindle1$dates, kindle1$count, 
      xlab = "date",
@@ -181,6 +181,8 @@ sentiment1 <- review_words1 %>%
   group_by(X, dates, ratings, formats) %>%
   summarise(sentiment = mean(afinn.score)) %>%
   mutate(method = "AFINN")
+
+View(sentiment1)
 
 #Merge sentiment and book1
 sentiment1.merge = merge(sentiment1, book1, by = "X")
@@ -385,7 +387,7 @@ contrasts(book1.final$digital)
 #As a first step, we will split the data into testing and training observation. 
 #The data is split into 60-40 ratio 
 #so there are 720 observations for training the model and 481 observation for evaluating the model.
-
+set.seed(1)
 row.number = sample(1:nrow(book1.final), 0.6*nrow(book1.final))
 train1 = book1.final[row.number,]
 test1 = book1.final[-row.number,]
@@ -404,14 +406,14 @@ attach(train1)
 pred.prob = predict(glm.fit1, newdata = train1, type="response")
 pred.prob = ifelse(pred.prob > 0.5, 1, 0)
 table(pred.prob, train1$digital)
-(437+44)/720 #66.8%, physical = 1, digital = 0
+(421+49)/720 #65.2%, physical = 1, digital = 0
 
 #find test accuracy with test data
 attach(test1)
 pred.prob = predict(glm.fit1, newdata = test1, type="response")
 pred.prob = ifelse(pred.prob > 0.5, 1, 0)
 table(pred.prob, test1$digital)
-(275+41)/481 #65.7% 
+(291+36)/481 #67.9% 
 
 #######################################################
 glm.probs=predict(glm.fit1,type = "response")
@@ -463,7 +465,7 @@ plot(lda.fit1)
 #Predicting training results.
 predmodel.train.lda1 = predict(lda.fit1, data=train1)
 table(Predicted=predmodel.train.lda1$class, train1$digital)
-(439+39)/720 #66.4%
+(430+23)/720 #62.9%
 
 #or to calculate the accuracy  
 mean(predmodel.train.lda1$class==train1$digital)
@@ -475,7 +477,7 @@ ldahist(predmodel.train.lda1$x[,1], g= predmodel.train.lda1$class)
 
 predmodel.test.lda1 = predict(lda.fit1, newdata=test1)
 table(Predicted=predmodel.test.lda1$class, test1$digital)
-(276+36)/481 #64.8%
+(298+18)/481 #65.7%
 
 #or to calculate the accuracy  
 mean(predmodel.test.lda1$class==test1$digital)
@@ -489,7 +491,7 @@ qda.fit1
 #Predicting training results.
 predmodel.train.qda1 = predict(qda.fit1, data=train1)
 table(Predicted=predmodel.train.qda1$class, train1$digital)
-(435+49)/720 #67.2%
+(424+46)/720 #65.3%
 
 #or to calculate the accuracy  
 mean(predmodel.train.qda1$class == train1$digital)
@@ -499,7 +501,7 @@ attach(test1)
 predmodel.test.qda1 = predict(qda.fit1, newdata=test1)
 
 table(Predicted=predmodel.test.qda1$class, test1$digital)
-(274+41)/481 #65.5%
+(293+34)/481 #68.0%
 
 #or to calculate the accuracy  
 mean(predmodel.test.qda1$class==test1$digital)
@@ -523,20 +525,20 @@ testcl = test1[,4,drop=TRUE] #class for knn confusion matrix
 
 knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k=1) #knn model when k=1
 table(knn1, testcl) #confusion matrix
-(+246)/481 #56.1%
+(27+277)/481 #63.2%
 
 knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k=5) #knn model when k=5
 table(knn1, testcl) #confusion matrix
-(20+256)/481 #57.4%
+(25+282)/481 #57.4%
 
 knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k=10) #knn model when k=10
 table(knn1, testcl) #confusion matrix
-(10+265)/481 #57.1%
+(18+288)/481 #63.6%
 
 k = sqrt(nrow(train1))
 knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k) #knn model when k=sqrt of nrow of train1
 table(knn1, testcl) #confusion matrix
-(8+268)/481 #57.3%
+(6+299)/481 #63.4%
 
 #########################################################
 # Finding best "K" 
@@ -550,13 +552,12 @@ model <- train(
 plot(model) #plot of accuracy
 
 # Print the best tuning parameter k that maximizes model accuracy
-model$bestTune #best K = 9
+model$bestTune #best K = 23
 
 knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k=) #knn model when k=9
 table(knn1, testcl) #confusion matrix
-(35+242)/481 #57.6%
+(27+273)/481 #62.4%
 #########################################################
-
 
 #scatterplot by digital
 library(ggvis)
@@ -606,10 +607,53 @@ model$bestTune #best K = 5
 #########################################################
 
 
+#8.3.1 Fitting Classification Trees
 
+library(tree)
+tree.rating = tree(rating~.-id,book1.final)
+summary(tree.rating)
+plot(tree.rating)
+text(tree.rating,pretty=0)
+title("Classification Tree for 'rating'")
 
+#Evaluating the performance of the regression tree
+set.seed(2)
+row.number = sample(1:nrow(book1.final), 0.6*nrow(book1.final))
+train1.tree = book1.final[row.number,]
+tree.book1 = tree(rating~.-id, book1.final, subset = unlist(train1.tree))
+summary(tree.book1)
+plot(tree.book1)
+text(tree.book1,pretty=0)
 
+cv.book1 = cv.tree(tree.book1)
+plot(cv.book1$size, cv.book1$dev, type = 'b')
+prune.book1 = prune.tree(tree.book1, best = 5)
 
+plot(prune.book1)
+text(prune.book1,pretty=0)
+
+#Prediction on the test set
+yhat = predict(tree.book1, newdata = book1.final[-row.number,])
+test1.tree = book1.final[-row.number,"sentiment"]
+plot(yhat, test1.tree)
+abline(0,1)
+mean((yhat-test1.tree)^2) #13.3
+
+#8.3.3 Bagging and Random Forest
+library(randomForest)
+library(party)
+set.seed(1)
+bag.book1 = randomForest(rating ~ sentiment+count,data = book1.final) 
+bag.book1
+plot(bag.book1)
+
+bag.book2 = randomForest(digital ~ rating+sentiment+count,data = book1.final) 
+bag.book2
+print(bag.book2)
+print(importance(bag.book2,type = 2))
+varImpPlot(bag.book2,type=2)
+
+#8.3.4 Boosting
 
 
 

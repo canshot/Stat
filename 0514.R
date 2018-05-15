@@ -42,15 +42,14 @@ book$X = NULL
 
 #Column order change
 book = book[c("id", "ratings", "dates","formats", "titles","texts")]
-View(book)
 
 #Order by date
 library(dplyr)
 book = arrange(book,dates)
 
-#grid table
-tt <- ttheme_default(colhead=list(fg_params = list(parse=TRUE)))
-grid.table(head(book),theme=tt)
+######grid table
+#tt <- ttheme_default(colhead=list(fg_params = list(parse=TRUE)))
+#grid.table(head(book),theme=tt)
 
 ###### Book review text character count ######
 library(qdap)
@@ -80,29 +79,29 @@ library(tidytext)
 library(lubridate)
 library(plyr)
 
-review_words <- book %>%
+review_words = book %>%
   select(id,ratings,dates,formats,titles,texts,count) %>%
   unnest_tokens(word, texts) %>%
   filter(!word %in% stop_words$word,
          str_detect(word, "^[a-z']+$"))
 
-View(review_words)
-
-AFINN <- sentiments %>%
+AFINN = sentiments %>%
   filter(lexicon == "AFINN") %>%
   select(word, afinn.score = score)
 
-sentiment <- review_words %>%
+library(tidyverse)                
+sentiment = review_words %>%
   inner_join(AFINN, by = "word") %>%
   group_by(id, ratings, dates, formats) %>%
   summarise(sentiment = mean(afinn.score)) %>%
   mutate(method = "AFINN")
 
-sentiment.date <- review_words %>%
+#Creating another dataset for Google Trend task
+sentiment.date = review_words %>%
   inner_join(AFINN, by = "word") %>%
   group_by(id, ratings, dates, formats) %>%
   summarise(sentiment = mean(afinn.score)) %>%
-  mutate(method = "AFINN") #same with 'sentiment'dateset
+  mutate(method = "AFINN") 
 
 ########################################
 
@@ -123,6 +122,9 @@ colnames(sentiment.merge) = c("id","rating","date", "format", "sentiment", "titl
 
 #create a final dataset 
 book.final = sentiment.merge[-c(6,7)] #2,245 observations
+View(book.final)
+dim(book.final)
+summary(book.final)
 
 ############ Descriptive Statistics ###############
 
@@ -215,10 +217,12 @@ ggplot(data=google, aes(date,trend)) + geom_line() + ggtitle("Google Trend of 'M
 
 library(lubridate)
 library(plyr)
+library(gridExtra)
+
 #Google Trend by month
 google$date = floor_date(google$date, "month")
 google.month = ddply(google, "date", summarise, trend = sum(trend))
-grid.table(google.month)
+View(google.month)
 
 #sentiment & ratings by month
 
@@ -232,7 +236,7 @@ View(sentiment.month)
 sentiment.month=sentiment.month[-c(1:7),]
 
 #plot of sentiment by month 
-library(ggplot2)
+require(ggplot2)
 theme_set(theme_bw())
 ggplot(sentiment.month, aes(dates, sentiment, group = dates)) +
   geom_point() + 
@@ -241,7 +245,7 @@ ggplot(sentiment.month, aes(dates, sentiment, group = dates)) +
   ggtitle("Sentiment Score by Month")
 
 #plot of ratings by month 
-library(ggplot2)
+require(ggplot2)
 theme_set(theme_bw())
 ggplot(sentiment.month, aes(dates, ratings, group = dates)) +
   geom_point() + 
@@ -249,9 +253,11 @@ ggplot(sentiment.month, aes(dates, ratings, group = dates)) +
   xlab("dates") + 
   ggtitle("Rating by Month")
 
-########## Linear Regression ########## 
+############ Statistical Learning ################
 
-#3.6.2 Simple Linear Regression (sentiment on rating)
+#3.6.2 Simple Linear Regression 
+
+#The effect of sentiment on rating
 lm.fit = lm(rating~sentiment,data = book.final)
 summary(lm.fit)
 
@@ -273,12 +279,50 @@ plot(hatvalues(lm.fit))
 
 which.max(hatvalues(lm.fit))
 
+#The effect of Google Trens on rating
+lm.fit.g.r = lm(sentiment.month$ratings~google.month$trend)
+lm.fit.g.r
+summary(lm.fit.g.r)
+names(lm.fit.g.r)
+coef(lm.fit.g.r)
+confint(lm.fit.g.r)
+plot(sentiment.month$ratings,google.month$trend,
+     pch=20, col = "red", cex = 2, 
+     main="Simple Linear Regresion of Goolge Trend & Rating",
+     ylab = "treand", xlab = "rating")
+abline(lm.fit.g.r, col="red")
+
+#The effect of Google Trens on sentiment
+lm.fit.g.s = lm(sentiment.month$sentiment~google.month$trend)
+lm.fit.g.s
+summary(lm.fit.g.s)
+names(lm.fit.g.s)
+coef(lm.fit.g.s)
+confint(lm.fit.g.s)
+
+plot(google.month$trend,sentiment.month$sentiment,
+     pch=20, col = "red", cex = 2,
+     main="Simple Linear Regresion of Google Trend & Sentiment",
+     ylab = "sentiment", xlab = "trend")
+abline(lm.fit.g, col="red")
+
 #3.6.3 Multiple Linear Regression 
+
+#The effect of sentiment + count on rating
 lm.fit.multi = lm(rating~sentiment+count,data = book.final)
 summary(lm.fit.multi)
 
+#The effect of all variables on rating
 lm.fit.all = lm(rating~.,data = book.final)
 summary(lm.fit.all)
+
+
+#The effect of Google Trend + sentiment on rating 
+lm.fit.g.m = lm(sentiment.month$ratings~sentiment.month$sentiment+google.month$trend)
+lm.fit.g.m
+summary(lm.fit.g.m)
+par(mfrow = c(2, 2))
+plot(lm.fit.g.m, pch=15, col="blue")
 
 #3.6.4 Interaction Terms
 lm.fit.inter = lm(rating~sentiment*count,data = book.final)
@@ -288,21 +332,7 @@ summary(lm.fit.inter)
 lm.fit.nonlinear = lm(rating~sentiment+I(sentiment^2), data = book.final)
 summary(lm.fit.nonlinear)
 
-anova(lm.fit, lm.fit.nonlinear)
-
-#The lm of sentiment on Google Trend
-lm.fit.g = lm(google.month$trend~sentiment.month$sentiment)
-lm.fit.g
-summary(lm.fit.g)
-names(lm.fit.g)
-coef(lm.fit.g)
-confint(lm.fit.g)
-
-plot(sentiment.month$sentiment,google.month$trend,
-     pch=20, col = "red", cex = 2,
-     main="Simple Linear Regresion of Google Trend & Sentiment",
-     ylab = "trend", xlab = "sentiment")
-abline(lm.fit.g, col="red")
+anova(lm.fit, lm.fit.nonlinear)#comparing two models
 
 #drawing confidence interval plot
 plot(coef(lm.fit.g), ylim=range(confint(lm.fit.g)))
@@ -324,49 +354,19 @@ axis(1, at=x, labels=names(y), tick=FALSE)
 abline(h=0, lty=3)
 arrows(x,ci[,1],x,ci[,2], code=3, angle=90, length=0.05)
 
-#The lm of ratings on Google Trends
-lm.fit.g.r = lm(google.month$trend~sentiment.month$ratings)
-lm.fit.g.r
-summary(lm.fit.g.r)
-names(lm.fit.g.r)
-coef(lm.fit.g.r)
-confint(lm.fit.g.r)
-plot(sentiment.month$ratings,google.month$trend,
-     pch=20, col = "red", cex = 2, 
-     main="Simple Linear Regresion of Goolge Trend & Rating",
-     ylab = "treand", xlab = "rating")
-abline(lm.fit.g.r, col="red")
-
-#Multiple lm 
-lm.fit.g.m = lm(google.month$trend~sentiment.month$sentiment+sentiment.month$ratings)
-lm.fit.g.m
-summary(lm.fit.g.m)
-par(mfrow = c(2, 2))
-plot(lm.fit.g.m, pch=15, col="blue")
-
-##########################################################
-
-
 ############## Logistic Regression ###############
 
-#4.6.1
-names(book1.final)
-dim(book1.final)
-summary(book1.final)
-cor(book1.final[,-c(1,2,4,6,7)])
+#4.6.1 Corrplot & Creating binary variable
 
 library(corrplot)
-corrplot(cor(book1.final[,-c(1,2,4)]), method = "circle")
-corrplot.mixed(cor(book1.final[,-c(1,2,4)]),lower.col = "black", number.cex = .7)
+corrplot(cor(book.final[,-c(1,3,4)]), method = "circle")
+corrplot.mixed(cor(book.final[,-c(1,3,4)]),lower.col = "black", number.cex = .7)
 
-#Create a binary variable for classification task 
+#For the classification task, create a binary variable  
 #If Kindle format = "digital", otherwise = "physical" 
 
-#book1.dummy = as.numeric(book1.final$format == "Kindle Edition")
-#book1.final$kindle = as.numeric(book1.dummy)
-
-book1.final$digital = as.factor(ifelse(book1.final$format == "Kindle Edition", "digital", "physical"))
-contrasts(book1.final$digital)
+book.final$digital = as.factor(ifelse(book.final$format == "Kindle Edition", "digital", "physical"))
+contrasts(book.final$digital)
 
 #4.6.2 Logistic Regression
 
@@ -436,7 +436,6 @@ table(glm.pred2,digital.id683)
 
 mean(glm.pred2 == "digital")
 mean(glm.pred2 != "digital")
-#######################################################
 
 #4.6.3 Linear Discriminant Analysis
 
@@ -493,12 +492,19 @@ table(Predicted=predmodel.test.qda1$class, test1$digital)
 #or to calculate the accuracy  
 mean(predmodel.test.qda1$class==test1$digital)
 
-#4.6.5 K-Nearest Neighbors 
+#####4.6.5 K-Nearest Neighbors 
+
+#scatterplot by digital
+library(ggvis)
+
+book.final %>% 
+  ggvis(~rating, ~sentiment, fill = ~digital) %>% 
+  layer_points()
 
 #scatterplot by format
 library(ggvis)
 
-book1.final %>% 
+book.final %>% 
   ggvis(~rating, ~sentiment, fill = ~format) %>% 
   layer_points()
 
@@ -527,7 +533,6 @@ knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k) #knn model when
 table(knn1, testcl) #confusion matrix
 (6+299)/481 #63.4%
 
-#########################################################
 # Finding best "K" 
 library(caret)
 library(e1071)
@@ -541,17 +546,10 @@ plot(model) #plot of accuracy
 # Print the best tuning parameter k that maximizes model accuracy
 model$bestTune #best K = 23
 
-knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k=) #knn model when k=9
+knn1 = knn(train1[,5, drop=FALSE], test1[,5, drop=FALSE], cl, k=9) #knn model when k=9
 table(knn1, testcl) #confusion matrix
 (27+273)/481 #62.4%
 #########################################################
-
-#scatterplot by digital
-library(ggvis)
-
-book1.final %>% 
-  ggvis(~rating, ~sentiment, fill = ~digital) %>% 
-  layer_points()
 
 #knn along with format
 library(class)
@@ -592,6 +590,39 @@ plot(model)
 # Print the best tuning parameter k that maximizes model accuracy
 model$bestTune #best K = 5
 #########################################################
+
+
+#5.3.1 The Validation Set Approach 
+
+set.seed(1)
+row.number = sample(1:nrow(book.final), 0.5*nrow(book.final)) #0.5
+train.valid = book.final[row.number,]
+test.valid = book.final[-row.number,]
+
+View(test.valid)
+
+lm.fit.valid = lm(rating~sentiment, data=train.valid) #validation set 
+
+attach(test.valid)
+mean((rating - predict(lm.fit.valid,train.valid))^2) #MSE
+#The estimated test MSE for the linear regression fit is 2.57
+
+#5.3.2 Leave-One-Out Cross-Validation 
+
+library(boot) #for cv.glm() function
+glm.fit = glm(rating~sentiment, data = book.final) #summary(glm.fit) = summary(lm.fit)
+
+#cross-validation estimate fot the test error
+cv.err = cv.glm(book.final, glm.fit)
+cv.err$delta #LOOCV estimate = 1.817393
+
+#5.3.3 k-Fold Cross-Validation 
+cv.err.10 = cv.glm(book.final, glm.fit, K=10)
+cv.err.10$delta #10-Fold CV estimate = 1.817851
+
+#5.3.4 The Bootstrap
+
+
 
 
 #8.3.1 Fitting Regression Trees
